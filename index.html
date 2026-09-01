@@ -158,10 +158,9 @@
 <script>
 // ====================== 修改这里！填入你的Supabase信息 ======================
 const SUPABASE_URL = "https://hhtyprekayfibvnztjcq.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_qiArQuTSZUmnd5kWyf51vA_-WKRemW_";
-// ==========================================================================
+const SUPABASE_ANON_KEY = "sb_publishable_qiArQuTSZUmnd5kWyfS1vA--WKRemW_";
 
-const { createClient } = supabase;
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let userRole = null; // editor / viewer

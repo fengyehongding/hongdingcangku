@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>业务数据处理报表系统</title>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.42.0/dist/umd/supabase.min.js"></script>
@@ -52,16 +52,15 @@
     <h2>内部报表系统登录</h2>
     <div class="login-item">
       <label>邮箱</label>
-      <input type="email" id="loginEmail"/>
+      <input type="email" id="loginEmail" />
     </div>
     <div class="login-item">
       <label>密码</label>
-      <input type="password" id="loginPwd"/>
+      <input type="password" id="loginPwd" />
     </div>
     <button id="btnLogin" style="width:100%">登录</button>
     <div id="loginErr" style="color:red;margin-top:10px;font-size:13px;"></div>
   </div>
-
   <!--主业务页面-->
   <div id="mainPage" class="hidden">
     <div class="header-bar">
@@ -72,25 +71,23 @@
         <button class="secondary" id="btnLogout">退出登录</button>
       </div>
     </div>
-
     <div class="toolbar">
       <button id="btnAddRow" class="editor-only">➕新增一行数据</button>
       <button id="btnRecalc">🔄刷新报表</button>
       <span class="readonly-hint editor-only">编辑者权限：修改表格自动保存云端；只读用户编辑控件隐藏</span>
     </div>
-
     <div class="editor-wrap editor-only">
       <div class="chart-title">📝在线编辑原始数据</div>
       <div style="overflow:auto;max-height:320px;">
         <table id="editTable">
           <thead>
             <tr>
-              <th>接入时间<br/><small>yyyy‑MM‑dd HH:mm</small></th>
+              <th>接入时间<br /><small>yyyy‑MM‑dd HH:mm</small></th>
               <th>客户姓名</th>
               <th>接入渠道</th>
               <th>数据类型</th>
               <th>处理进度</th>
-              <th>处理完成时间<br/><small>未完成留空</small></th>
+              <th>处理完成时间<br /><small>未完成留空</small></th>
               <th>操作</th>
             </tr>
           </thead>
@@ -98,7 +95,6 @@
         </table>
       </div>
     </div>
-
     <div class="filter-bar">
       <div>数据类型：<select id="filterType"><option value="">全部</option></select></div>
       <div>接入渠道：<select id="filterChannel"><option value="">全部</option></div>
@@ -107,7 +103,6 @@
       <button id="btnFilter">筛选</button>
       <button class="secondary" id="btnResetFilter">重置筛选</button>
     </div>
-
     <div class="kpi-row">
       <div class="kpi-card"><div class="label">记录总数</div><div class="val" id="kpiTotal">0</div></div>
       <div class="kpi-card"><div class="label">已完成记录</div><div class="val" id="kpiFinished">0</div></div>
@@ -115,7 +110,6 @@
       <div class="kpi-card"><div class="label">平均单条耗时(分钟)</div><div class="val" id="kpiAvgMin">0</div></div>
       <div class="kpi-card"><div class="label">处理完成率</div><div class="val" id="kpiRate">0%</div></div>
     </div>
-
     <div class="chart-grid">
       <div class="chart-card wide">
         <div class="chart-title">不同数据类型 - 累计处理完成总耗时（小时）</div>
@@ -134,7 +128,6 @@
         <div id="chart4"></div>
       </div>
     </div>
-
     <div class="data-table-wrap">
       <div class="chart-title">明细数据（筛选后）</div>
       <table id="resultTable">
@@ -154,24 +147,20 @@
     </div>
   </div>
 </div>
-
 <script>
 // ====================== 修改这里！填入你的Supabase信息 ======================
 const SUPABASE_URL = "https://hhtyprekayfibvnztjcq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_qiArQuTSZUmnd5kWyfS1vA--WKRemW_";
-
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let userRole = null; // editor / viewer
 let businessList = [];
 let realtimeChannel = null;
-
 const chart1 = echarts.init(document.getElementById('chart1'));
 const chart2 = echarts.init(document.getElementById('chart2'));
 const chart3 = echarts.init(document.getElementById('chart3'));
 const chart4 = echarts.init(document.getElementById('chart4'));
-
 // 页面切换
 function showLogin(){
   document.getElementById('loginPage').classList.remove('hidden');
@@ -181,15 +170,13 @@ function showMain(){
   document.getElementById('loginPage').classList.add('hidden');
   document.getElementById('mainPage').classList.remove('hidden');
 }
-
 // 获取当前用户角色
 async function fetchUserRole(){
-  const {data:{user}} = await supabase.auth.getUser();
+  const {data:{user}} = await supabaseClient.auth.getUser();
   if(!user) return null;
-  const {data} = await supabase.from('current_user_role').select('*').single();
+  const {data} = await supabaseClient.from('current_user_role').select('*').single();
   return data?.role || 'viewer';
 }
-
 // 权限渲染：editor显示编辑区域，viewer隐藏全部编辑控件
 function applyRoleUi(){
   userRole === 'editor'
@@ -197,10 +184,9 @@ function applyRoleUi(){
     : document.querySelectorAll('.editor-only').forEach(el=>el.classList.add('hidden'));
   document.getElementById('roleTag').innerText = userRole==='editor'?"编辑者权限":"只读查看权限";
 }
-
 // 从云端拉取全部业务数据
 async function loadBusinessData(){
-  const {data,error} = await supabase.from('business_data').select('*').order('id',{ascending:false});
+  const {data,error} = await supabaseClient.from('business_data').select('*').order('id',{ascending:false});
   if(error){console.error(error);return;}
   businessList = data.map(d=>({
     id:d.id,
@@ -213,16 +199,14 @@ async function loadBusinessData(){
   }));
   renderAll();
 }
-
 // 开启实时订阅，多人同步
 function subscribeRealtime(){
   if(realtimeChannel) realtimeChannel.unsubscribe();
-  realtimeChannel = supabase.channel('business_channel')
+  realtimeChannel = supabaseClient.channel('business_channel')
     .on('postgres_changes',{event:'*',schema:'public',table:'business_data'},payload=>{
       loadBusinessData();
     }).subscribe();
 }
-
 // 保存单行到云端
 async function saveRow(item){
   const payload = {
@@ -234,15 +218,14 @@ async function saveRow(item){
     finish_time:item.处理完成时间
   };
   if(item.id){
-    await supabase.from('business_data').update(payload).eq('id',item.id);
+    await supabaseClient.from('business_data').update(payload).eq('id',item.id);
   }else{
-    await supabase.from('business_data').insert(payload);
+    await supabaseClient.from('business_data').insert(payload);
   }
 }
 async function deleteRowDb(id){
-  await supabase.from('business_data').delete().eq('id',id);
+  await supabaseClient.from('business_data').delete().eq('id',id);
 }
-
 // 渲染可编辑表格
 function renderEditTable(){
   const tb = document.getElementById('editTbody');
@@ -267,7 +250,6 @@ function renderEditTable(){
     `;
     tb.appendChild(tr);
   });
-
   document.querySelectorAll('.tbl-input').forEach(el=>{
     el.addEventListener('change',async e=>{
       const idx = Number(e.target.dataset.idx);
@@ -292,12 +274,10 @@ function renderEditTable(){
     }
   })
 }
-
 function escapeHtml(str){
   if(!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace( />/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 // 计算耗时
 function computeData(list){
   return list.map(item=>{
@@ -312,7 +292,6 @@ function computeData(list){
     return {...item,_costMin:costMin}
   })
 }
-
 function getFiltered(){
   let arr = computeData(businessList);
   const ft = document.getElementById('filterType').value;
@@ -327,7 +306,6 @@ function getFiltered(){
   if(fe) arr = arr.filter(x=>{const d=new Date(x.接入时间);return d<=new Date(fe+' 23:59:59');});
   return arr;
 }
-
 function refreshFilterOptions(){
   const types = [...new Set(businessList.map(i=>i.数据类型).filter(Boolean))];
   const channels = [...new Set(businessList.map(i=>i.接入渠道).filter(Boolean))];
@@ -343,7 +321,6 @@ function setSelectOptions(id,arr){
   arr.forEach(v=>{const op=document.createElement('option');op.value=v;op.innerText=v;sel.appendChild(op);});
   sel.value = cur;
 }
-
 function renderAll(){
   renderEditTable();
   refreshFilterOptions();
@@ -354,31 +331,25 @@ function renderAll(){
   const sumHour = sumMin / 60;
   const avgMin = finished>0 ? sumMin / finished : 0;
   const rate = total>0 ? (finished/total*100).toFixed(1) : 0;
-
   document.getElementById('kpiTotal').innerText = total;
   document.getElementById('kpiFinished').innerText = finished;
   document.getElementById('kpiSumHour').innerText = sumHour.toFixed(2);
   document.getElementById('kpiAvgMin').innerText = avgMin.toFixed(1);
   document.getElementById('kpiRate').innerText = rate+'%';
-
   const typeGroup = {};
   data.forEach(d=>{if(d._costMin){typeGroup[d.数据类型]=(typeGroup[d.数据类型]||0)+d._costMin/60;}});
   const typeArr = Object.entries(typeGroup).sort((a,b)=>b[1]-a[1]);
   chart1.setOption({tooltip:{trigger:'axis'},xAxis:{type:'value',name:'累计耗时(小时)'},yAxis:{type:'category',data:typeArr.map(i=>i[0]).reverse()},series:[{type:'bar',data:typeArr.map(i=>i[1]).reverse(),barWidth:20}]});
-
   const chGroup = {};
   data.forEach(d=>{if(d._costMin){chGroup[d.接入渠道]=(chGroup[d.接入渠道]||0)+d._costMin/60;}});
   chart2.setOption({tooltip:{trigger:'item'},series:[{type:'pie',radius:'65%',data:Object.entries(chGroup).map(([n,v])=>({name:n,value:v}))}]});
-
   const proGroup = {};
   data.forEach(d=>{proGroup[d.处理进度]=(proGroup[d.处理进度]||0)+1;});
   chart3.setOption({tooltip:{trigger:'item'},series:[{type:'pie',radius:'65%',data:Object.entries(proGroup).map(([n,v])=>({name:n,value:v}))}]});
-
   const dayGroup = {};
   data.forEach(d=>{if(!d._costMin||!d.接入时间)return;const day=d.接入时间.split(' ')[0];dayGroup[day]=(dayGroup[day]||0)+d._costMin/60;});
   const dayList = Object.entries(dayGroup).sort((a,b)=>new Date(a[0])-new Date(b[0]));
   chart4.setOption({tooltip:{trigger:'axis'},xAxis:{type:'category',data:dayList.map(i=>i[0])},yAxis:{type:'value',name:'耗时(小时)'},series:[{type:'line',data:dayList.map(i=>i[1]),smooth:true}]});
-
   const rt = document.getElementById('resultTbody');
   rt.innerHTML='';
   data.forEach(d=>{
@@ -395,7 +366,6 @@ function renderAll(){
     rt.appendChild(tr);
   })
 }
-
 // 按钮事件
 document.getElementById('btnAddRow').onclick = async ()=>{
   await saveRow({id:null,接入时间:'',客户姓名:'',接入渠道:'',数据类型:'',处理进度:'待处理',处理完成时间:''});
@@ -407,25 +377,21 @@ document.getElementById('btnResetFilter').onclick = ()=>{
   document.getElementById('filterProgress').value='';document.getElementById('filterStart').value='';document.getElementById('filterEnd').value='';
   renderAll();
 };
-
 document.getElementById('btnLogin').onclick = async ()=>{
   const email = document.getElementById('loginEmail').value.trim();
   const pwd = document.getElementById('loginPwd').value;
-  const {error} = await supabase.auth.signInWithPassword({email,password:pwd});
+  const {error} = await supabaseClient.auth.signInWithPassword({email,password:pwd});
   if(error){document.getElementById('loginErr').innerText=error.message;return;}
   await initApp();
 };
-
 document.getElementById('btnLogout').onclick = async ()=>{
-  await supabase.auth.signOut();
+  await supabaseClient.auth.signOut();
   if(realtimeChannel) realtimeChannel.unsubscribe();
   showLogin();
 };
-
 window.addEventListener('resize',()=>{chart1.resize();chart2.resize();chart3.resize();chart4.resize();})
-
 async function initApp(){
-  const {data:{user}} = await supabase.auth.getUser();
+  const {data:{user}} = await supabaseClient.auth.getUser();
   if(!user){showLogin();return;}
   showMain();
   document.getElementById('userEmail').innerText = user.email;
@@ -434,7 +400,6 @@ async function initApp(){
   await loadBusinessData();
   subscribeRealtime();
 }
-
 initApp();
 </script>
 </body>

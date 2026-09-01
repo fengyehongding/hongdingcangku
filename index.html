@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>业务数据处理报表系统</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.42.0/dist/umd/supabase.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;}
+    body{background:#f4f7fa;padding:16px;color:#222;}
+    .container{max-width:1600px;margin:0 auto;}
+    h1{font-size:22px;margin-bottom:16px;}
+    .header-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+    button{padding:8px 14px;border:none;border-radius:6px;background:#2b7bdd;color:#fff;cursor:pointer;font-size:14px;}
+    button.secondary{background:#6c757d;}
+    button.danger{background:#dc3545;}
+    .filter-bar{background:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+    select,input{padding:7px 10px;border:1px solid #ced4da;border-radius:6px;font-size:14px;}
+    .kpi-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(160px,1fr));gap:12px;margin-bottom:16px;}
+    .kpi-card{background:#fff;padding:14px;border-radius:8px;box-shadow:0 1px 3px #00000015;}
+    .kpi-card .val{font-size:24px;font-weight:bold;color:#2b7bdd;margin:4px 0;}
+    .kpi-card .label{font-size:13px;color:#666;}
+    .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+    .chart-card{background:#fff;padding:14px;border-radius:8px;min-height:340px;box-shadow:0 1px 3px #00000015;}
+    .chart-card.wide{grid-column:1/-1;min-height:380px;}
+    .chart-title{font-size:15px;font-weight:600;margin-bottom:10px;}
+    #chart1,#chart2,#chart3,#chart4{width:100%;height:calc(100% - 28px);}
+    .editor-wrap{background:#fff;padding:16px;border-radius:8px;margin:16px 0;box-shadow:0 1px 3px #00000015;}
+    table{width:100%;border-collapse:collapse;margin-top:8px;}
+    th,td{border:1px solid #dee2e6;padding:8px 6px;font-size:13px;}
+    th{background:#e9ecef;position:sticky;top:0;}
+    .tbl-input{width:100%;border:none;background:transparent;font-size:13px;padding:4px;}
+    .tbl-input:focus{outline:1px solid #2b7bdd;}
+    .data-table-wrap{background:#fff;padding:14px;border-radius:8px;overflow:auto;max-height:420px;box-shadow:0 1px 3px #00000015;}
+    .tip{font-size:12px;color:#888;margin:6px 0;}
+    .login-box{max-width:420px;margin:80px auto;background:#fff;padding:24px;border-radius:10px;box-shadow:0 2px 12px #0002;}
+    .login-box h2{margin-bottom:16px;font-size:20px;}
+    .login-item{margin-bottom:12px;}
+    .login-item label{display:block;margin-bottom:4px;font-size:14px;}
+    .login-item input{width:100%;}
+    .role-tag{font-size:13px;background:#e8f0fe;color:#2b7bdd;padding:3px 8px;border-radius:4px;}
+    .readonly-hint{color:#999;font-size:12px;margin:8px 0;}
+    .hidden{display:none !important;}
+  </style>
+</head>
+<body>
+<div class="container">
+  <!--登录页面-->
+  <div id="loginPage" class="login-box">
+    <h2>内部报表系统登录</h2>
+    <div class="login-item">
+      <label>邮箱</label>
+      <input type="email" id="loginEmail"/>
+    </div>
+    <div class="login-item">
+      <label>密码</label>
+      <input type="password" id="loginPwd"/>
+    </div>
+    <button id="btnLogin" style="width:100%">登录</button>
+    <div id="loginErr" style="color:red;margin-top:10px;font-size:13px;"></div>
+  </div>
+
+  <!--主业务页面-->
+  <div id="mainPage" class="hidden">
+    <div class="header-bar">
+      <h1>数据处理完成时间统计报表</h1>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <span>当前用户：<span id="userEmail"></span></span>
+        <span class="role-tag" id="roleTag"></span>
+        <button class="secondary" id="btnLogout">退出登录</button>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button id="btnAddRow" class="editor-only">➕新增一行数据</button>
+      <button id="btnRecalc">🔄刷新报表</button>
+      <span class="readonly-hint editor-only">编辑者权限：修改表格自动保存云端；只读用户编辑控件隐藏</span>
+    </div>
+
+    <div class="editor-wrap editor-only">
+      <div class="chart-title">📝在线编辑原始数据</div>
+      <div style="overflow:auto;max-height:320px;">
+        <table id="editTable">
+          <thead>
+            <tr>
+              <th>接入时间<br/><small>yyyy‑MM‑dd HH:mm</small></th>
+              <th>客户姓名</th>
+              <th>接入渠道</th>
+              <th>数据类型</th>
+              <th>处理进度</th>
+              <th>处理完成时间<br/><small>未完成留空</small></th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="editTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div>数据类型：<select id="filterType"><option value="">全部</option></select></div>
+      <div>接入渠道：<select id="filterChannel"><option value="">全部</option></div>
+      <div>处理进度：<select id="filterProgress"><option value="">全部</option></div>
+      <div>接入时间：<input type="date" id="filterStart"> ~ <input type="date" id="filterEnd"></div>
+      <button id="btnFilter">筛选</button>
+      <button class="secondary" id="btnResetFilter">重置筛选</button>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="label">记录总数</div><div class="val" id="kpiTotal">0</div></div>
+      <div class="kpi-card"><div class="label">已完成记录</div><div class="val" id="kpiFinished">0</div></div>
+      <div class="kpi-card"><div class="label">累计总耗时(小时)</div><div class="val" id="kpiSumHour">0</div></div>
+      <div class="kpi-card"><div class="label">平均单条耗时(分钟)</div><div class="val" id="kpiAvgMin">0</div></div>
+      <div class="kpi-card"><div class="label">处理完成率</div><div class="val" id="kpiRate">0%</div></div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">不同数据类型 - 累计处理完成总耗时（小时）</div>
+        <div id="chart1"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">各接入渠道累计耗时</div>
+        <div id="chart2"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">处理进度分布</div>
+        <div id="chart3"></div>
+      </div>
+      <div class="chart-card wide">
+        <div class="chart-title">每日累计处理耗时走势</div>
+        <div id="chart4"></div>
+      </div>
+    </div>
+
+    <div class="data-table-wrap">
+      <div class="chart-title">明细数据（筛选后）</div>
+      <table id="resultTable">
+        <thead>
+          <tr>
+            <th>接入时间</th>
+            <th>客户姓名</th>
+            <th>接入渠道</th>
+            <th>数据类型</th>
+            <th>处理进度</th>
+            <th>处理完成时间</th>
+            <th>处理耗时(分钟)</th>
+          </tr>
+        </thead>
+        <tbody id="resultTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====================== 修改这里！填入你的Supabase信息 ======================
+const SUPABASE_URL = "https://hhtyprekayfibvnztjcq.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_qiArQuTSZUmnd5kWyf51vA_-WKRemW_";
+// ==========================================================================
+
+const { createClient } = supabase;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let userRole = null; // editor / viewer
+let businessList = [];
+let realtimeChannel = null;
+
+const chart1 = echarts.init(document.getElementById('chart1'));
+const chart2 = echarts.init(document.getElementById('chart2'));
+const chart3 = echarts.init(document.getElementById('chart3'));
+const chart4 = echarts.init(document.getElementById('chart4'));
+
+// 页面切换
+function showLogin(){
+  document.getElementById('loginPage').classList.remove('hidden');
+  document.getElementById('mainPage').classList.add('hidden');
+}
+function showMain(){
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('mainPage').classList.remove('hidden');
+}
+
+// 获取当前用户角色
+async function fetchUserRole(){
+  const {data:{user}} = await supabase.auth.getUser();
+  if(!user) return null;
+  const {data} = await supabase.from('current_user_role').select('*').single();
+  return data?.role || 'viewer';
+}
+
+// 权限渲染：editor显示编辑区域，viewer隐藏全部编辑控件
+function applyRoleUi(){
+  userRole === 'editor'
+    ? document.querySelectorAll('.editor-only').forEach(el=>el.classList.remove('hidden'))
+    : document.querySelectorAll('.editor-only').forEach(el=>el.classList.add('hidden'));
+  document.getElementById('roleTag').innerText = userRole==='editor'?"编辑者权限":"只读查看权限";
+}
+
+// 从云端拉取全部业务数据
+async function loadBusinessData(){
+  const {data,error} = await supabase.from('business_data').select('*').order('id',{ascending:false});
+  if(error){console.error(error);return;}
+  businessList = data.map(d=>({
+    id:d.id,
+    接入时间:d.access_time||'',
+    客户姓名:d.customer_name||'',
+    接入渠道:d.access_channel||'',
+    数据类型:d.data_type||'',
+    处理进度:d.process_status||'',
+    处理完成时间:d.finish_time||''
+  }));
+  renderAll();
+}
+
+// 开启实时订阅，多人同步
+function subscribeRealtime(){
+  if(realtimeChannel) realtimeChannel.unsubscribe();
+  realtimeChannel = supabase.channel('business_channel')
+    .on('postgres_changes',{event:'*',schema:'public',table:'business_data'},payload=>{
+      loadBusinessData();
+    }).subscribe();
+}
+
+// 保存单行到云端
+async function saveRow(item){
+  const payload = {
+    access_time:item.接入时间,
+    customer_name:item.客户姓名,
+    access_channel:item.接入渠道,
+    data_type:item.数据类型,
+    process_status:item.处理进度,
+    finish_time:item.处理完成时间
+  };
+  if(item.id){
+    await supabase.from('business_data').update(payload).eq('id',item.id);
+  }else{
+    await supabase.from('business_data').insert(payload);
+  }
+}
+async function deleteRowDb(id){
+  await supabase.from('business_data').delete().eq('id',id);
+}
+
+// 渲染可编辑表格
+function renderEditTable(){
+  const tb = document.getElementById('editTbody');
+  tb.innerHTML = '';
+  businessList.forEach((row,idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input class="tbl-input" value="${escapeHtml(row.接入时间||'')}" data-idx="${idx}"></td>
+      <td><input class="tbl-input" value="${escapeHtml(row.客户姓名||'')}" data-idx="${idx}"></td>
+      <td><input class="tbl-input" value="${escapeHtml(row.接入渠道||'')}" data-idx="${idx}"></td>
+      <td><input class="tbl-input" value="${escapeHtml(row.数据类型||'')}" data-idx="${idx}"></td>
+      <td>
+        <select class="tbl-input" data-idx="${idx}">
+          <option value="已完成" ${row.处理进度==='已完成'?'selected':''}>已完成</option>
+          <option value="处理中" ${row.处理进度==='处理中'?'selected':''}>处理中</option>
+          <option value="待处理" ${row.处理进度==='待处理'?'selected':''}>待处理</option>
+          <option value="异常" ${row.处理进度==='异常'?'selected':''}>异常</option>
+        </select>
+      </td>
+      <td><input class="tbl-input" value="${escapeHtml(row.处理完成时间||'')}" data-idx="${idx}"></td>
+      <td><button class="danger del-row" data-idx="${idx}">删除</button></td>
+    `;
+    tb.appendChild(tr);
+  });
+
+  document.querySelectorAll('.tbl-input').forEach(el=>{
+    el.addEventListener('change',async e=>{
+      const idx = Number(e.target.dataset.idx);
+      const tr = e.target.closest('tr');
+      const inputs = Array.from(tr.querySelectorAll('.tbl-input'));
+      businessList[idx].接入时间 = inputs[0].value;
+      businessList[idx].客户姓名 = inputs[1].value;
+      businessList[idx].接入渠道 = inputs[2].value;
+      businessList[idx].数据类型 = inputs[3].value;
+      businessList[idx].处理进度 = inputs[4].value;
+      businessList[idx].处理完成时间 = inputs[5].value;
+      await saveRow(businessList[idx]);
+    })
+  })
+  document.querySelectorAll('.del-row').forEach(btn=>{
+    btn.onclick = async e=>{
+      const idx = Number(e.target.dataset.idx);
+      const item = businessList[idx];
+      if(confirm('确定删除这条记录？')){
+        await deleteRowDb(item.id);
+      }
+    }
+  })
+}
+
+function escapeHtml(str){
+  if(!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 计算耗时
+function computeData(list){
+  return list.map(item=>{
+    let costMin = null;
+    if(item.处理进度 === '已完成' && item.处理完成时间){
+      const s = new Date(item.接入时间);
+      const e = new Date(item.处理完成时间);
+      if(!isNaN(s.getTime()) && !isNaN(e.getTime())){
+        costMin = (e - s)/1000/60;
+      }
+    }
+    return {...item,_costMin:costMin}
+  })
+}
+
+function getFiltered(){
+  let arr = computeData(businessList);
+  const ft = document.getElementById('filterType').value;
+  const fc = document.getElementById('filterChannel').value;
+  const fp = document.getElementById('filterProgress').value;
+  const fs = document.getElementById('filterStart').value;
+  const fe = document.getElementById('filterEnd').value;
+  if(ft) arr = arr.filter(x=>x.数据类型 === ft);
+  if(fc) arr = arr.filter(x=>x.接入渠道 === fc);
+  if(fp) arr = arr.filter(x=>x.处理进度 === fp);
+  if(fs) arr = arr.filter(x=>{const d=new Date(x.接入时间);return d>=new Date(fs);});
+  if(fe) arr = arr.filter(x=>{const d=new Date(x.接入时间);return d<=new Date(fe+' 23:59:59');});
+  return arr;
+}
+
+function refreshFilterOptions(){
+  const types = [...new Set(businessList.map(i=>i.数据类型).filter(Boolean))];
+  const channels = [...new Set(businessList.map(i=>i.接入渠道).filter(Boolean))];
+  const progresses = [...new Set(businessList.map(i=>i.处理进度).filter(Boolean))];
+  setSelectOptions('filterType',types);
+  setSelectOptions('filterChannel',channels);
+  setSelectOptions('filterProgress',progresses);
+}
+function setSelectOptions(id,arr){
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部</option>';
+  arr.forEach(v=>{const op=document.createElement('option');op.value=v;op.innerText=v;sel.appendChild(op);});
+  sel.value = cur;
+}
+
+function renderAll(){
+  renderEditTable();
+  refreshFilterOptions();
+  const data = getFiltered();
+  const total = data.length;
+  const finished = data.filter(d=>d.处理进度==='已完成').length;
+  const sumMin = data.reduce((s,i)=> i._costMin ? s+i._costMin : s,0);
+  const sumHour = sumMin / 60;
+  const avgMin = finished>0 ? sumMin / finished : 0;
+  const rate = total>0 ? (finished/total*100).toFixed(1) : 0;
+
+  document.getElementById('kpiTotal').innerText = total;
+  document.getElementById('kpiFinished').innerText = finished;
+  document.getElementById('kpiSumHour').innerText = sumHour.toFixed(2);
+  document.getElementById('kpiAvgMin').innerText = avgMin.toFixed(1);
+  document.getElementById('kpiRate').innerText = rate+'%';
+
+  const typeGroup = {};
+  data.forEach(d=>{if(d._costMin){typeGroup[d.数据类型]=(typeGroup[d.数据类型]||0)+d._costMin/60;}});
+  const typeArr = Object.entries(typeGroup).sort((a,b)=>b[1]-a[1]);
+  chart1.setOption({tooltip:{trigger:'axis'},xAxis:{type:'value',name:'累计耗时(小时)'},yAxis:{type:'category',data:typeArr.map(i=>i[0]).reverse()},series:[{type:'bar',data:typeArr.map(i=>i[1]).reverse(),barWidth:20}]});
+
+  const chGroup = {};
+  data.forEach(d=>{if(d._costMin){chGroup[d.接入渠道]=(chGroup[d.接入渠道]||0)+d._costMin/60;}});
+  chart2.setOption({tooltip:{trigger:'item'},series:[{type:'pie',radius:'65%',data:Object.entries(chGroup).map(([n,v])=>({name:n,value:v}))}]});
+
+  const proGroup = {};
+  data.forEach(d=>{proGroup[d.处理进度]=(proGroup[d.处理进度]||0)+1;});
+  chart3.setOption({tooltip:{trigger:'item'},series:[{type:'pie',radius:'65%',data:Object.entries(proGroup).map(([n,v])=>({name:n,value:v}))}]});
+
+  const dayGroup = {};
+  data.forEach(d=>{if(!d._costMin||!d.接入时间)return;const day=d.接入时间.split(' ')[0];dayGroup[day]=(dayGroup[day]||0)+d._costMin/60;});
+  const dayList = Object.entries(dayGroup).sort((a,b)=>new Date(a[0])-new Date(b[0]));
+  chart4.setOption({tooltip:{trigger:'axis'},xAxis:{type:'category',data:dayList.map(i=>i[0])},yAxis:{type:'value',name:'耗时(小时)'},series:[{type:'line',data:dayList.map(i=>i[1]),smooth:true}]});
+
+  const rt = document.getElementById('resultTbody');
+  rt.innerHTML='';
+  data.forEach(d=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(d.接入时间||'')}</td>
+      <td>${escapeHtml(d.客户姓名||'')}</td>
+      <td>${escapeHtml(d.接入渠道||'')}</td>
+      <td>${escapeHtml(d.数据类型||'')}</td>
+      <td>${escapeHtml(d.处理进度||'')}</td>
+      <td>${escapeHtml(d.处理完成时间||'')}</td>
+      <td>${d._costMin!==null?d._costMin.toFixed(1):'-'}</td>
+    `;
+    rt.appendChild(tr);
+  })
+}
+
+// 按钮事件
+document.getElementById('btnAddRow').onclick = async ()=>{
+  await saveRow({id:null,接入时间:'',客户姓名:'',接入渠道:'',数据类型:'',处理进度:'待处理',处理完成时间:''});
+};
+document.getElementById('btnRecalc').onclick = loadBusinessData;
+document.getElementById('btnFilter').onclick = renderAll;
+document.getElementById('btnResetFilter').onclick = ()=>{
+  document.getElementById('filterType').value='';document.getElementById('filterChannel').value='';
+  document.getElementById('filterProgress').value='';document.getElementById('filterStart').value='';document.getElementById('filterEnd').value='';
+  renderAll();
+};
+
+document.getElementById('btnLogin').onclick = async ()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd = document.getElementById('loginPwd').value;
+  const {error} = await supabase.auth.signInWithPassword({email,password:pwd});
+  if(error){document.getElementById('loginErr').innerText=error.message;return;}
+  await initApp();
+};
+
+document.getElementById('btnLogout').onclick = async ()=>{
+  await supabase.auth.signOut();
+  if(realtimeChannel) realtimeChannel.unsubscribe();
+  showLogin();
+};
+
+window.addEventListener('resize',()=>{chart1.resize();chart2.resize();chart3.resize();chart4.resize();})
+
+async function initApp(){
+  const {data:{user}} = await supabase.auth.getUser();
+  if(!user){showLogin();return;}
+  showMain();
+  document.getElementById('userEmail').innerText = user.email;
+  userRole = await fetchUserRole();
+  applyRoleUi();
+  await loadBusinessData();
+  subscribeRealtime();
+}
+
+initApp();
+</script>
+</body>
+</html>
